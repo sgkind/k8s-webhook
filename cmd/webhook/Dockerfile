@@ -15,4 +15,5 @@
 FROM debian
 
 ADD webhook /webhook
-ENTRYPOINT ["/webhook","-tls-cert-file", "/tmp/tls_secret/tls.crt", "-tls-private-key-file", "/tmp/tls_secret/tls.key"]
+ENV TLS_CRT_PATH=/etc/webhook/tls.crt TLS_KEY_PATH=/etc/webhook/tls.key
+ENTRYPOINT ["/webhook","-tls-cert-file", "$TLS_CRT_PATH", "-tls-private-key-file", "$TLS_KEY_PATH"]

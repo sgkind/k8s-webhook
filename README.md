@@ -116,12 +116,19 @@ spec:
         volumeMounts:
         - name: tls-secret
           mountPath: /tmp/tls_secret
+        env:
+        - name: TLS_CRT_PATH
+          value: /tmp/tls_secret/tls.crt
+        - name: TLS_KEY_PATH
+          value: /tmp/tls_secret/tls.key
       volumes:
       - name: tls-secret
         secret:
           secretName: selfsigned-cert-tls
 ```
-注意：需要将上面配置文件中的secretName修改为自己创建的Certificate所生成的secret的名字。
+注意：
+1. 需要将上面配置文件中的secretName修改为自己创建的Certificate所生成的secret的名字。
+2. 根据secret挂载的路径相应的修改环境变量TLS_CRT_PATH和TLS_KEY_PATH的值
 
 ## 创建ValidatingWebhookConfiguration
 ```
@@ -151,3 +158,41 @@ webhooks:
 ```
 
 其中caBundle是secret中的ca.crt字段中的值。当前此值是手动拷贝的，也可以在注解中添加`cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)`
+
+## 验证
+因为上面创建的ValidatingWebhookConfiguration会deny所以的pod，所以ValidatingWebhookConfiguration创建完后不能创建pod
+用下面的yaml创建一个deployments
+```shell
+$ cat busybox.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-deployment
+  labels:
+    app: busybox
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: busybox
+  template:
+    metadata:
+      labels:
+        app: busybox
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        
+        command: ['sh', '-c', 'echo Container 1 is Running ; sleep 3600']
+```
+查看创建的deployments
+```shell
+NAME                 READY   UP-TO-DATE   AVAILABLE   AGE
+busybox-deployment   0/3     0            0           6m41s
+```
+其中busybox-deployment中没有一个成功的pod,查看api-server的日志
+```shell
+W0622 03:14:26.106375       1 dispatcher.go:142] rejected by webhook "pod-policy.nocsys.cn": &errors.StatusError{ErrStatus:v1.Status{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ListMeta:v1.ListMeta{SelfLink:"", ResourceVersion:"", Continue:"", RemainingItemCount:(*int64)(nil)}, Status:"Failure", Message:"admission webhook \"pod-policy.nocsys.cn\" denied the request: this webhook denies all requests", Reason:"", Details:(*v1.StatusDetails)(nil), Code:400}}
+```
