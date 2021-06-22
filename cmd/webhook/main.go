@@ -21,7 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"k8s.io/api/admission/v1beta1"
+	v1 "k8s.io/api/admission/v1"
 	"net/http"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,8 +32,8 @@ import (
 
 // toAdmissionResponse is a helper function to create an AdmissionResponse
 // with an embedded error
-func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
-	return &v1beta1.AdmissionResponse{
+func toAdmissionResponse(err error) *v1.AdmissionResponse {
+	return &v1.AdmissionResponse{
 		Result: &metav1.Status{
 			Message: err.Error(),
 		},
@@ -41,7 +41,7 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 }
 
 // admitFunc is the type we use for all of our validators and mutators
-type admitFunc func(v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
+type admitFunc func(v1.AdmissionReview) *v1.AdmissionResponse
 
 // serve handles the http portion of a request prior to handing to an admit
 // function
@@ -64,10 +64,12 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	klog.Errorf("handling request: %s", body)
 
 	// The AdmissionReview that was sent to the webhook
-	requestedAdmissionReview := v1beta1.AdmissionReview{}
+	requestedAdmissionReview := v1.AdmissionReview{}
 
 	// The AdmissionReview that will be returned
-	responseAdmissionReview := v1beta1.AdmissionReview{}
+	responseAdmissionReview := v1.AdmissionReview{}
+	responseAdmissionReview.APIVersion = "admission.k8s.io/v1"
+	responseAdmissionReview.Kind = "AdmissionReview"
 
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
@@ -75,10 +77,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 		responseAdmissionReview.Response = toAdmissionResponse(err)
 	} else {
 		// pass to admitFunc
-		//responseAdmissionReview.Response = admit(requestedAdmissionReview)
-		klog.Info(fmt.Sprintf("%v", requestedAdmissionReview))
-		responseAdmissionReview.Response = &v1beta1.AdmissionResponse{}
-		responseAdmissionReview.Response.Allowed = true
+		responseAdmissionReview.Response = admit(requestedAdmissionReview)
 	}
 
 	// Return the same UID
@@ -95,7 +94,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	}
 }
 
-/*
+
 func serveAlwaysAllowDelayFiveSeconds(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, alwaysAllowDelayFiveSeconds)
 }
@@ -107,11 +106,11 @@ func serveAlwaysDeny(w http.ResponseWriter, r *http.Request) {
 func serveAddLabel(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, addLabel)
 }
-*/
+
 func servePods(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, admitPods)
 }
-/*
+
 func serveAttachingPods(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, denySpecificAttachment)
 }
@@ -139,7 +138,7 @@ func serveMutateCustomResource(w http.ResponseWriter, r *http.Request) {
 func serveCRD(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, admitCRD)
 }
-*/
+
 func main() {
 	klog.InitFlags(nil)
 	var config Config
@@ -149,22 +148,20 @@ func main() {
 	flag.Parse()
 	klog.V(3).Info("test")
 
-	//http.HandleFunc("/always-allow-delay-5s", serveAlwaysAllowDelayFiveSeconds)
-	//http.HandleFunc("/always-deny", serveAlwaysDeny)
-	//http.HandleFunc("/add-label", serveAddLabel)
+	http.HandleFunc("/always-allow-delay-5s", serveAlwaysAllowDelayFiveSeconds)
+	http.HandleFunc("/always-deny", serveAlwaysDeny)
+	http.HandleFunc("/add-label", serveAddLabel)
 	http.HandleFunc("/pods", servePods)
-	http.HandleFunc("/", servePods)
-	//http.HandleFunc("/pods/attach", serveAttachingPods)
-	//http.HandleFunc("/mutating-pods", serveMutatePods)
-	//http.HandleFunc("/configmaps", serveConfigmaps)
-	//http.HandleFunc("/mutating-configmaps", serveMutateConfigmaps)
-	//http.HandleFunc("/custom-resource", serveCustomResource)
-	//http.HandleFunc("/mutating-custom-resource", serveMutateCustomResource)
-	//http.HandleFunc("/crd", serveCRD)
+	http.HandleFunc("/pods/attach", serveAttachingPods)
+	http.HandleFunc("/mutating-pods", serveMutatePods)
+	http.HandleFunc("/configmaps", serveConfigmaps)
+	http.HandleFunc("/mutating-configmaps", serveMutateConfigmaps)
+	http.HandleFunc("/custom-resource", serveCustomResource)
+	http.HandleFunc("/mutating-custom-resource", serveMutateCustomResource)
+	http.HandleFunc("/crd", serveCRD)
 	server := &http.Server{
 		Addr:      ":443",
 		TLSConfig: configTLS(config),
 	}
 	server.ListenAndServeTLS("", "")
-	//server.ListenAndServe()
 }

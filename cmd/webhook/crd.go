@@ -18,17 +18,17 @@ package main
 
 import (
 	"fmt"
+	v1 "k8s.io/api/admission/v1"
 
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/api/admission/v1beta1"
 	"k8s.io/klog"
 )
 
 // This function expects all CRDs submitted to it to be apiextensions.k8s.io/v1beta1
 // TODO: When apiextensions.k8s.io/v1 is added we will need to update this function.
-func admitCRD(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func admitCRD(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	klog.V(2).Info("admitting crd")
 	crdResource := metav1.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1beta1", Resource: "customresourcedefinitions"}
 	if ar.Request.Resource != crdResource {
@@ -44,7 +44,7 @@ func admitCRD(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		klog.Error(err)
 		return toAdmissionResponse(err)
 	}
-	reviewResponse := v1beta1.AdmissionResponse{}
+	reviewResponse := v1.AdmissionResponse{}
 	reviewResponse.Allowed = true
 
 	if v, ok := crd.Labels["webhook-e2e-test"]; ok {

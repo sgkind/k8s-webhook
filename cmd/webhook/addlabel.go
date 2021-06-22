@@ -18,8 +18,8 @@ package main
 
 import (
 	"encoding/json"
+	v1 "k8s.io/api/admission/v1"
 
-	"k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 )
@@ -34,7 +34,7 @@ const (
 )
 
 // Add a label {"added-label": "yes"} to the object
-func addLabel(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func addLabel(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	klog.V(2).Info("calling add-label")
 	obj := struct {
 		metav1.ObjectMeta
@@ -47,14 +47,14 @@ func addLabel(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return toAdmissionResponse(err)
 	}
 
-	reviewResponse := v1beta1.AdmissionResponse{}
+	reviewResponse := v1.AdmissionResponse{}
 	reviewResponse.Allowed = true
 	if len(obj.ObjectMeta.Labels) == 0 {
 		reviewResponse.Patch = []byte(addFirstLabelPatch)
 	} else {
 		reviewResponse.Patch = []byte(addAdditionalLabelPatch)
 	}
-	pt := v1beta1.PatchTypeJSONPatch
+	pt := v1.PatchTypeJSONPatch
 	reviewResponse.PatchType = &pt
 	return &reviewResponse
 }

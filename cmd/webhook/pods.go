@@ -18,12 +18,12 @@ package main
 
 import (
 	"fmt"
+	v1 "k8s.io/api/admission/v1"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/api/admission/v1beta1"
 	"k8s.io/klog"
 )
 
@@ -34,7 +34,7 @@ const (
 )
 
 // only allow pods to pull images from specific registry.
-func admitPods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func admitPods(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	klog.V(2).Info("admitting pods")
 	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	if ar.Request.Resource != podResource {
@@ -50,7 +50,7 @@ func admitPods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		klog.Error(err)
 		return toAdmissionResponse(err)
 	}
-	reviewResponse := v1beta1.AdmissionResponse{}
+	reviewResponse := v1.AdmissionResponse{}
 	reviewResponse.Allowed = true
 
 	var msg string
@@ -77,7 +77,7 @@ func admitPods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	return &reviewResponse
 }
 
-func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func mutatePods(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	klog.V(2).Info("mutating pods")
 	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	if ar.Request.Resource != podResource {
@@ -92,11 +92,11 @@ func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		klog.Error(err)
 		return toAdmissionResponse(err)
 	}
-	reviewResponse := v1beta1.AdmissionResponse{}
+	reviewResponse := v1.AdmissionResponse{}
 	reviewResponse.Allowed = true
 	if pod.Name == "webhook-to-be-mutated" {
 		reviewResponse.Patch = []byte(podsInitContainerPatch)
-		pt := v1beta1.PatchTypeJSONPatch
+		pt := v1.PatchTypeJSONPatch
 		reviewResponse.PatchType = &pt
 	}
 	return &reviewResponse
@@ -104,10 +104,10 @@ func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 
 // denySpecificAttachment denies `kubectl attach to-be-attached-pod -i -c=container1"
 // or equivalent client requests.
-func denySpecificAttachment(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func denySpecificAttachment(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	klog.V(2).Info("handling attaching pods")
 	if ar.Request.Name != "to-be-attached-pod" {
-		return &v1beta1.AdmissionResponse{Allowed: true}
+		return &v1.AdmissionResponse{Allowed: true}
 	}
 	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	if e, a := podResource, ar.Request.Resource; e != a {
@@ -130,9 +130,9 @@ func denySpecificAttachment(ar v1beta1.AdmissionReview) *v1beta1.AdmissionRespon
 	}
 	klog.V(2).Info(fmt.Sprintf("podAttachOptions=%#v\n", podAttachOptions))
 	if !podAttachOptions.Stdin || podAttachOptions.Container != "container1" {
-		return &v1beta1.AdmissionResponse{Allowed: true}
+		return &v1.AdmissionResponse{Allowed: true}
 	}
-	return &v1beta1.AdmissionResponse{
+	return &v1.AdmissionResponse{
 		Allowed: false,
 		Result: &metav1.Status{
 			Message: "attaching to pod 'to-be-attached-pod' is not allowed",
